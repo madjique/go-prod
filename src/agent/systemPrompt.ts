@@ -13,7 +13,7 @@ create and organize tasks, give summaries, and find time slots for new activitie
 User Profile: ${userProfile || 'A professional looking to improve productivity'}
 
 Work hours: ${settings.workStartHour}:00 - ${settings.workEndHour}:00
-Sleep hours: ${settings.sleepEndHour}:00 - ${settings.sleepStartHour}:00
+Sleep hours: ${settings.sleepStartHour}:00 - ${settings.sleepEndHour}:00
 
 Your memory about this user:
 ${memory}
