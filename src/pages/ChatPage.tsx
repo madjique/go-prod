@@ -1,4 +1,5 @@
-import { History, Mic, MicOff, Plus, Send } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { History, Mic, MicOff, MoreHorizontal, Plus, Send } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { GlassButton } from '../components/ui/GlassButton'
 import { GlassCard } from '../components/ui/GlassCard'
@@ -37,7 +38,8 @@ export function ChatPage() {
   const [input, setInput] = useState('')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [hasInitialized, setHasInitialized] = useState(false)
-  
+  const [moreOpen, setMoreOpen] = useState(false)
+
   // Voice Recognition states
   const [isListening, setIsListening] = useState(false)
   const recognitionRef = useRef<any>(null)
@@ -255,36 +257,97 @@ export function ChatPage() {
         <div ref={endRef} />
       </div>
 
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+78px)] md:bottom-6 left-4 right-4 md:left-[calc(16rem+2rem)] md:right-8 z-30 mx-auto max-w-2xl flex items-center gap-2">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+72px)] md:bottom-6 left-4 right-4 md:left-[calc(16rem+2rem)] md:right-8 z-30 mx-auto max-w-2xl flex items-center gap-2">
         {!isListening && (
           <>
-            <GlassButton
-              variant="ghost"
-              className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20 shrink-0"
-              onClick={() => {
-                void createConversation().then((id) => {
-                  setActiveConversationId(id)
-                })
-              }}
-              disabled={messages.length === 0}
-              title="New Conversation"
-            >
-              <Plus className="size-5 animate-none" />
-            </GlassButton>
+            {/* ─── Wide screens: two visible buttons ─── */}
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
+              <GlassButton
+                variant="ghost"
+                className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20"
+                onClick={() => {
+                  void createConversation().then((id) => setActiveConversationId(id))
+                }}
+                disabled={messages.length === 0}
+                title="New Conversation"
+              >
+                <Plus className="size-5 animate-none" />
+              </GlassButton>
+              <GlassButton
+                variant="ghost"
+                className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20"
+                onClick={() => setHistoryOpen(true)}
+                title="Conversation History"
+              >
+                <History className="size-5" />
+              </GlassButton>
+            </div>
 
-            <GlassButton
-              variant="ghost"
-              className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20 shrink-0"
-              onClick={() => setHistoryOpen(true)}
-              title="Conversation History"
-            >
-              <History className="size-5" />
-            </GlassButton>
+            {/* ─── Small screens: collapsible ··· button ─── */}
+            <div className="relative sm:hidden shrink-0">
+              {/* Popup actions that fly out above */}
+              <AnimatePresence>
+                {moreOpen && (
+                  <motion.div
+                    className="absolute bottom-[calc(100%+8px)] left-0 flex flex-col items-center gap-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <motion.div
+                      initial={{ y: 16, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: 16, opacity: 0 }}
+                      transition={{ delay: 0.05, duration: 0.2, ease: 'easeOut' }}
+                    >
+                      <GlassButton
+                        variant="ghost"
+                        className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20"
+                        onClick={() => { setHistoryOpen(true); setMoreOpen(false) }}
+                        title="Conversation History"
+                      >
+                        <History className="size-5" />
+                      </GlassButton>
+                    </motion.div>
+                    <motion.div
+                      initial={{ y: 16, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: 16, opacity: 0 }}
+                      transition={{ delay: 0, duration: 0.2, ease: 'easeOut' }}
+                    >
+                      <GlassButton
+                        variant="ghost"
+                        className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20 disabled:opacity-40"
+                        onClick={() => {
+                          void createConversation().then((id) => setActiveConversationId(id))
+                          setMoreOpen(false)
+                        }}
+                        disabled={messages.length === 0}
+                        title="New Conversation"
+                      >
+                        <Plus className="size-5 animate-none" />
+                      </GlassButton>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* The ··· toggle button */}
+              <GlassButton
+                variant="ghost"
+                className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20"
+                onClick={() => setMoreOpen((v) => !v)}
+                title="More options"
+              >
+                <MoreHorizontal className="size-5" />
+              </GlassButton>
+            </div>
           </>
         )}
 
         <form
-          className="flex-1 glass rounded-full p-1.5 shadow-lg border border-white/50 dark:border-white/10 transition-all duration-300"
+          className="flex-1 min-w-0 glass rounded-full p-1.5 shadow-lg border border-white/50 dark:border-white/10 transition-all duration-300"
           onSubmit={(event) => {
             event.preventDefault()
             const value = input.trim()

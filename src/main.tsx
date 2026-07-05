@@ -27,6 +27,26 @@ if (typeof window !== 'undefined') {
   setInterval(() => {
     void updateSW()
   }, 10 * 60 * 1000)
+
+  // Disable native iOS swipe-to-go-back gesture in standalone PWA mode.
+  // Intercept any touch that starts within the leftmost 30 px of the viewport
+  // and cancel it before the browser can interpret it as a navigation swipe.
+  const isStandalone =
+    ('standalone' in window.navigator && (window.navigator as any).standalone === true) ||
+    window.matchMedia('(display-mode: standalone)').matches
+
+  if (isStandalone) {
+    document.addEventListener(
+      'touchstart',
+      (e: TouchEvent) => {
+        const touch = e.touches[0]
+        if (touch && touch.clientX < 30) {
+          e.preventDefault()
+        }
+      },
+      { passive: false },
+    )
+  }
 }
 
 // Fetch interceptor for debugging network requests

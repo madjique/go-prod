@@ -23,7 +23,7 @@ export function BottomNav() {
   const location = useLocation()
 
   return (
-    <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+16px)] z-40 mx-auto w-full max-w-md px-4 md:max-w-3xl">
+    <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+8px)] z-40 mx-auto w-full max-w-md px-4 md:max-w-3xl">
       <div className="glass mx-auto flex items-center justify-between rounded-full p-1">
         {items.map((item) => {
           const Icon = item.icon
