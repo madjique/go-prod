@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const APP_BASE = '/go-prod/'
+const APP_BASE = '/'
 const THEME_COLOR = '#6366f1'
 
 export default defineConfig({

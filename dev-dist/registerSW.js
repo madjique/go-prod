@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/go-prod/dev-sw.js?dev-sw', { scope: '/go-prod/', type: 'classic' })

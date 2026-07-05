@@ -15,14 +15,14 @@ export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) 
     <AnimatePresence>
       {isOpen ? (
         <motion.div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 md:items-center md:p-6"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm p-0 md:items-center md:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
         >
           <motion.div
-            className="glass relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[32px] px-5 pb-5 pt-4 md:rounded-[32px]"
+            className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[32px] px-5 pb-5 pt-4 md:rounded-[32px] bg-white/70 dark:bg-black/50 backdrop-blur-2xl border border-white/50 dark:border-white/10 shadow-2xl z-10"
             initial={{ y: 48, opacity: 0.7 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 48, opacity: 0.7 }}

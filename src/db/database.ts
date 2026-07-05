@@ -7,6 +7,7 @@ import type {
   Conversation,
   Message,
   Task,
+  CalendarEvent,
 } from './models'
 
 export class GoProdDB extends Dexie {
@@ -17,6 +18,7 @@ export class GoProdDB extends Dexie {
   agentMemory!: Table<AgentMemory>
   agentSummaries!: Table<AgentSummary>
   settings!: Table<AppSettings>
+  calendarEvents!: Table<CalendarEvent>
 
   constructor() {
     super('GoProdDB')
@@ -28,6 +30,7 @@ export class GoProdDB extends Dexie {
       agentMemory: '++id, key, importance, category',
       agentSummaries: '++id, conversationId, createdAt',
       settings: '++id',
+      calendarEvents: '++id, date, source, createdAt',
     })
   }
 }

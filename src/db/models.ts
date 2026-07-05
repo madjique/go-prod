@@ -73,3 +73,15 @@ export interface AppSettings {
   onboardingCompleted: boolean;
   calendarAccess: boolean;
 }
+
+export interface CalendarEvent {
+  id?: number;
+  title: string;
+  description?: string;
+  date: string; // yyyy-MM-dd
+  timeStart?: string; // HH:mm
+  timeEnd?: string; // HH:mm
+  source: 'ics' | 'device';
+  createdAt: string;
+}
+

@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
 import type { AppSettings } from '../db/models'
 import { useAppStore, type ThemeMode } from '../store/useAppStore'
+import { aiModelOptions } from '../agent/modelOptions'
 
 export function useSettings() {
   const settings = useLiveQuery(() => db.settings.orderBy('id').first(), [], null)
@@ -55,7 +56,10 @@ export function useSettings() {
   )
 
   const updateProvider = useCallback(
-    async (aiProvider: AppSettings['aiProvider']) => updateSettings({ aiProvider }),
+    async (aiProvider: AppSettings['aiProvider']) => {
+      const defaultModel = aiModelOptions[aiProvider][0]
+      await updateSettings({ aiProvider, aiModel: defaultModel })
+    },
     [updateSettings],
   )
 

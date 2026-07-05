@@ -71,3 +71,16 @@
     @apply border border-white/40 bg-white/30 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-white/5;
   }
 }
+
+/* Color input overrides for a premium rounded/circular design */
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: inherit;
+}
+input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: inherit;
+}

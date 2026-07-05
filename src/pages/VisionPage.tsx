@@ -1,10 +1,6 @@
-import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GlassButton } from '../components/ui/GlassButton'
 import { GlassCard } from '../components/ui/GlassCard'
-import { Modal } from '../components/ui/Modal'
-import { TaskCard } from '../components/ui/TaskCard'
-import { useCategories } from '../hooks/useCategories'
 import { useTasks } from '../hooks/useTasks'
 import { useAppStore } from '../store/useAppStore'
 import { formatDayLabel, formatMonthLabel, formatWeekLabel, getMonthWeeks, getWeekDays, isToday } from '../utils/date.utils'
@@ -15,17 +11,14 @@ export function VisionPage() {
   const setCurrentViewDate = useAppStore((state) => state.setCurrentViewDate)
   const visionMode = useAppStore((state) => state.visionMode)
   const setVisionMode = useAppStore((state) => state.setVisionMode)
-  const openEditTaskModal = useAppStore((state) => state.openEditTaskModal)
-  const { categories } = useCategories()
-  const { getTasksForDate, toggleDone } = useTasks()
-  const [selectedDay, setSelectedDay] = useState<string | null>(null)
-
-  const categoryMap = useMemo(
-    () => new Map(categories.map((category) => [category.id, category])),
-    [categories],
-  )
+  const { getTasksForDate } = useTasks()
   const weekDays = getWeekDays(currentViewDate)
   const monthWeeks = getMonthWeeks(currentViewDate)
+
+  const handleDayClick = (day: string) => {
+    setCurrentViewDate(day)
+    navigate('/app/today')
+  }
 
   return (
     <div className="space-y-4">
@@ -47,14 +40,14 @@ export function VisionPage() {
       </GlassCard>
 
       {visionMode === 'week' ? (
-        <div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-7 md:overflow-visible">
+        <div className="flex flex-col gap-3 md:grid md:grid-cols-7">
           {weekDays.map((day) => {
             const tasks = getTasksForDate(day)
             return (
               <GlassCard
                 key={day}
-                className="min-w-[220px] space-y-3 md:min-w-0"
-                onClick={() => setSelectedDay(day)}
+                className="space-y-3 cursor-pointer hover:border-primary/40 transition-colors"
+                onClick={() => handleDayClick(day)}
               >
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300">
@@ -64,7 +57,7 @@ export function VisionPage() {
                 </div>
                 <div className="space-y-2">
                   {tasks.slice(0, 4).map((task) => (
-                    <div key={task.id} className="rounded-2xl bg-white/55 px-3 py-2 text-sm dark:bg-white/5">
+                    <div key={task.id} className="rounded-2xl bg-white/55 px-3 py-2 text-sm dark:bg-white/5 truncate">
                       {task.title}
                     </div>
                   ))}
@@ -98,8 +91,8 @@ export function VisionPage() {
                   <button
                     key={day}
                     type="button"
-                    onClick={() => setSelectedDay(day)}
-                    className={`rounded-2xl px-2 py-3 ${isToday(day) ? 'bg-primary text-white' : 'bg-white/50 text-slate-700 dark:bg-white/5 dark:text-slate-100'}`}
+                    onClick={() => handleDayClick(day)}
+                    className={`rounded-2xl px-2 py-3 hover:ring-2 hover:ring-primary/40 transition-all ${isToday(day) ? 'bg-primary text-white' : 'bg-white/50 text-slate-700 dark:bg-white/5 dark:text-slate-100'}`}
                   >
                     <div>{day.slice(-2)}</div>
                     <div className="mt-1 text-[10px] opacity-80">{getTasksForDate(day).length} tasks</div>
@@ -110,39 +103,6 @@ export function VisionPage() {
           ))}
         </div>
       )}
-
-      <Modal
-        isOpen={selectedDay !== null}
-        onClose={() => setSelectedDay(null)}
-        title={selectedDay ? formatDayLabel(selectedDay) : 'Day overview'}
-      >
-        <div className="space-y-3">
-          {(selectedDay ? getTasksForDate(selectedDay) : []).map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              category={categoryMap.get(task.categoryId)}
-              onToggle={() => void toggleDone(task.id!)}
-              onClick={() => openEditTaskModal(task.id!)}
-            />
-          ))}
-          {selectedDay && getTasksForDate(selectedDay).length === 0 ? (
-            <GlassCard className="text-sm text-slate-500 dark:text-slate-300">No tasks for this day yet.</GlassCard>
-          ) : null}
-          {selectedDay ? (
-            <GlassButton
-              className="w-full"
-              onClick={() => {
-                setCurrentViewDate(selectedDay)
-                setSelectedDay(null)
-                navigate('/app/today')
-              }}
-            >
-              Open in Today view
-            </GlassButton>
-          ) : null}
-        </div>
-      </Modal>
     </div>
   )
 }

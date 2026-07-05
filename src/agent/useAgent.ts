@@ -40,17 +40,20 @@ export function useAgent({ conversationId }: UseAgentOptions) {
         return
       }
 
+      console.log('[useAgent] sendMessage triggered with content:', content)
       setIsStreaming(true)
       setStreamingText('')
       setError(null)
 
       const createdAt = new Date().toISOString()
+      console.log('[useAgent] adding user message to db')
       await db.messages.add({
         conversationId,
         role: 'user',
         content: content.trim(),
         createdAt,
       })
+      console.log('[useAgent] user message added to db')
 
       const conversation = await db.conversations.get(conversationId)
       if (conversation?.title.startsWith('Conversation ')) {
@@ -60,6 +63,7 @@ export function useAgent({ conversationId }: UseAgentOptions) {
         })
       }
 
+      console.log('[useAgent] fetching settings, memory, and allMessages')
       const settings = await db.settings.orderBy('id').first()
       const memory = await db.agentMemory.orderBy('importance').reverse().toArray()
       const allMessages = await db.messages
@@ -68,14 +72,17 @@ export function useAgent({ conversationId }: UseAgentOptions) {
         .sortBy('createdAt')
 
       if (!settings) {
+        console.warn('[useAgent] settings not found')
         setIsStreaming(false)
         setError('Settings are still loading.')
         return
       }
+      console.log('[useAgent] settings loaded, provider:', settings.aiProvider, 'model:', settings.aiModel)
 
       const toolMessages: Omit<Message, 'id'>[] = []
 
       try {
+        console.log('[useAgent] calling runAgent')
         const result = await runAgent({
           messages: toCoreMessages(allMessages),
           settings,
@@ -85,9 +92,11 @@ export function useAgent({ conversationId }: UseAgentOptions) {
               : 'No saved user memory yet.',
           userProfile: settings.userProfile || 'A professional looking to improve productivity',
           onTextDelta: (delta) => {
+            console.log('[useAgent] text delta:', delta)
             setStreamingText((current) => current + delta)
           },
           onToolResult: async (toolName, resultValue) => {
+            console.log('[useAgent] tool result:', toolName, resultValue)
             toolMessages.push({
               conversationId,
               role: 'tool',
@@ -98,8 +107,10 @@ export function useAgent({ conversationId }: UseAgentOptions) {
             })
           },
         })
+        console.log('[useAgent] runAgent completed successfully, result:', result)
 
         if (toolMessages.length > 0) {
+          console.log('[useAgent] saving tool messages:', toolMessages.length)
           await db.messages.bulkAdd(toolMessages)
         }
 
@@ -112,12 +123,14 @@ export function useAgent({ conversationId }: UseAgentOptions) {
           tokenCount: result.usage.totalTokens,
           cost: result.cost,
         })
+        console.log('[useAgent] saved assistant message to db')
 
         const updatedMessages = await db.messages
           .where('conversationId')
           .equals(conversationId)
           .sortBy('createdAt')
 
+        console.log('[useAgent] building conversation summary')
         const summary = buildConversationSummary(updatedMessages)
         await db.agentSummaries.where('conversationId').equals(conversationId).delete()
         await db.agentSummaries.add({
@@ -128,6 +141,7 @@ export function useAgent({ conversationId }: UseAgentOptions) {
           createdAt: assistantCreatedAt,
         })
 
+        console.log('[useAgent] extracting memory candidates')
         const extracted = extractMemoryCandidates(`${content}
 ${result.text}`)
         for (const item of extracted) {
@@ -153,7 +167,9 @@ ${result.text}`)
           updatedAt: assistantCreatedAt,
           summary: summary.summary,
         })
+        console.log('[useAgent] conversation updated')
       } catch (caughtError) {
+        console.error('[useAgent] Error caught in sendMessage:', caughtError)
         const message = caughtError instanceof Error ? caughtError.message : 'Unable to reach the AI provider.'
         setError(message)
         await db.messages.add({
@@ -163,6 +179,7 @@ ${result.text}`)
           createdAt: new Date().toISOString(),
         })
       } finally {
+        console.log('[useAgent] sendMessage finally block')
         setStreamingText('')
         setIsStreaming(false)
       }

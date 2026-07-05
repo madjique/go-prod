@@ -59,7 +59,7 @@ export function isToday(date: string): boolean {
 }
 
 export function formatDayLabel(date: string): string {
-  return format(parseISO(date), 'EEE d')
+  return format(parseISO(date), 'EEEE, MMMM d, yyyy')
 }
 
 export function formatMonthLabel(date: string): string {

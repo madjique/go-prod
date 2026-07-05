@@ -12,6 +12,8 @@ interface AppState {
   currentViewDate: string
   isAddTaskModalOpen: boolean
   editingTaskId: number | null
+  isDetailsModalOpen: boolean
+  detailsTaskId: number | null
   visionMode: VisionMode
   activeConversationId: number | null
   onboardingCompleted: boolean
@@ -21,12 +23,16 @@ interface AppState {
   setCurrentViewDate: (date: string) => void
   setIsAddTaskModalOpen: (isOpen: boolean) => void
   setEditingTaskId: (taskId: number | null) => void
+  setIsDetailsModalOpen: (isOpen: boolean) => void
+  setDetailsTaskId: (taskId: number | null) => void
   setVisionMode: (mode: VisionMode) => void
   setActiveConversationId: (conversationId: number | null) => void
   setOnboardingCompleted: (completed: boolean) => void
   setHasHydrated: (value: boolean) => void
   openCreateTaskModal: (date?: string) => void
   openEditTaskModal: (taskId: number) => void
+  openDetailsModal: (taskId: number) => void
+  closeDetailsModal: () => void
 }
 
 const today = format(new Date(), 'yyyy-MM-dd')
@@ -39,6 +45,8 @@ export const useAppStore = create<AppState>()(
       currentViewDate: today,
       isAddTaskModalOpen: false,
       editingTaskId: null,
+      isDetailsModalOpen: false,
+      detailsTaskId: null,
       visionMode: 'week',
       activeConversationId: null,
       onboardingCompleted: false,
@@ -48,6 +56,8 @@ export const useAppStore = create<AppState>()(
       setCurrentViewDate: (currentViewDate) => set({ currentViewDate }),
       setIsAddTaskModalOpen: (isAddTaskModalOpen) => set({ isAddTaskModalOpen }),
       setEditingTaskId: (editingTaskId) => set({ editingTaskId }),
+      setIsDetailsModalOpen: (isDetailsModalOpen) => set({ isDetailsModalOpen }),
+      setDetailsTaskId: (detailsTaskId) => set({ detailsTaskId }),
       setVisionMode: (visionMode) => set({ visionMode }),
       setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
       setOnboardingCompleted: (onboardingCompleted) => set({ onboardingCompleted }),
@@ -62,6 +72,16 @@ export const useAppStore = create<AppState>()(
         set({
           editingTaskId,
           isAddTaskModalOpen: true,
+        }),
+      openDetailsModal: (detailsTaskId) =>
+        set({
+          detailsTaskId,
+          isDetailsModalOpen: true,
+        }),
+      closeDetailsModal: () =>
+        set({
+          detailsTaskId: null,
+          isDetailsModalOpen: false,
         }),
     }),
     {

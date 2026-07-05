@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion'
 import type { Category, Task } from '../../db/models'
 import { cn } from '../../utils/cn'
 import { formatTime } from '../../utils/date.utils'
@@ -16,11 +17,13 @@ export function TaskCard({ task, category, onToggle, onClick }: TaskCardProps) {
   const hasTime = task.timeStart || task.timeEnd
 
   return (
-    <button
+    <motion.button
       type="button"
+      whileTap={{ scale: 0.98 }}
+      whileHover={{ y: -2 }}
       onClick={onClick}
       className={cn(
-        'glass w-full rounded-[28px] p-4 text-left transition hover:-translate-y-0.5',
+        'glass w-full rounded-[28px] p-4 text-left transition-all duration-300 shadow-sm border border-white/20 hover:bg-white/40 dark:hover:bg-white/10',
         task.isDone && 'opacity-70',
       )}
     >
@@ -41,14 +44,26 @@ export function TaskCard({ task, category, onToggle, onClick }: TaskCardProps) {
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">{task.description}</p>
               ) : null}
             </div>
-            <input
-              type="checkbox"
-              checked={task.isDone}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggle()
+              }}
+              className={cn(
+                'mt-1 size-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 flex-shrink-0',
+                task.isDone
+                  ? 'bg-primary border-primary text-white'
+                  : 'border-slate-300 dark:border-slate-600 hover:border-primary',
+              )}
               aria-label={`Toggle ${task.title}`}
-              className="mt-1 size-5 rounded border-slate-300 text-primary"
-              onClick={(event) => event.stopPropagation()}
-              onChange={onToggle}
-            />
+            >
+              {task.isDone ? (
+                <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : null}
+            </button>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-300">
             {hasTime ? (
@@ -65,6 +80,6 @@ export function TaskCard({ task, category, onToggle, onClick }: TaskCardProps) {
           </div>
         </div>
       </div>
-    </button>
+    </motion.button>
   )
 }

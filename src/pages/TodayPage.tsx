@@ -1,6 +1,6 @@
 import { addDays, format, parseISO, subDays } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { GlassCard } from '../components/ui/GlassCard'
 import { GlassButton } from '../components/ui/GlassButton'
 import { TaskCard } from '../components/ui/TaskCard'
@@ -13,9 +13,13 @@ import { priorityRank } from '../utils/priority.utils'
 export function TodayPage() {
   const currentViewDate = useAppStore((state) => state.currentViewDate)
   const setCurrentViewDate = useAppStore((state) => state.setCurrentViewDate)
-  const openEditTaskModal = useAppStore((state) => state.openEditTaskModal)
+  const openDetailsModal = useAppStore((state) => state.openDetailsModal)
   const { categories } = useCategories()
   const { getTasksForDate, toggleDone } = useTasks()
+
+  useEffect(() => {
+    setCurrentViewDate(format(new Date(), 'yyyy-MM-dd'))
+  }, [setCurrentViewDate])
 
   const tasks = getTasksForDate(currentViewDate)
   const categoryMap = useMemo(
@@ -74,7 +78,7 @@ export function TodayPage() {
               task={task}
               category={categoryMap.get(task.categoryId)}
               onToggle={() => void toggleDone(task.id!)}
-              onClick={() => openEditTaskModal(task.id!)}
+              onClick={() => openDetailsModal(task.id!)}
             />
           ))
         ) : (
@@ -94,7 +98,7 @@ export function TodayPage() {
               task={task}
               category={categoryMap.get(task.categoryId)}
               onToggle={() => void toggleDone(task.id!)}
-              onClick={() => openEditTaskModal(task.id!)}
+              onClick={() => openDetailsModal(task.id!)}
             />
           ))
         ) : (

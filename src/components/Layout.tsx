@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AddTaskModal } from './AddTaskModal'
+import { TaskDetailsModal } from './TaskDetailsModal'
 import { FAB } from './ui/FAB'
 import { BottomNav } from './ui/BottomNav'
 import { useAppStore, type AppTab } from '../store/useAppStore'
@@ -44,6 +45,7 @@ export function Layout() {
       {activeTab === 'today' ? <FAB onClick={() => openCreateTaskModal(currentViewDate)} /> : null}
       <BottomNav />
       <AddTaskModal />
+      <TaskDetailsModal />
     </div>
   )
 }

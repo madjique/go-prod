@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { aiModelOptions } from '../agent/modelOptions'
 import { db } from '../db/database'
@@ -8,6 +8,7 @@ import { GlassCard } from '../components/ui/GlassCard'
 import { useAgentMemory } from '../hooks/useAgentMemory'
 import { useCategories } from '../hooks/useCategories'
 import { useSettingsContext } from '../context/SettingsContext'
+import { parseICS } from '../utils/ics.utils'
 
 export function SettingsPage() {
   const {
@@ -21,15 +22,25 @@ export function SettingsPage() {
     updateSettings,
   } = useSettingsContext()
   const { categories, addCategory, updateCategory, deleteCategory } = useCategories()
-  const { memory, clearAllMemory } = useAgentMemory()
+  const { memory, deleteMemory, clearAllMemory } = useAgentMemory()
   const summaries = useLiveQuery(
     () => db.agentSummaries.orderBy('createdAt').reverse().toArray(),
     [],
     [],
   )
+  const calendarEvents = useLiveQuery(() => db.calendarEvents.toArray(), [], [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const calendarInputRef = useRef<HTMLInputElement | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newCategoryColor, setNewCategoryColor] = useState('#6366f1')
+  const [customPrompt, setCustomPrompt] = useState('')
+
+  useEffect(() => {
+    if (settings) {
+      setCustomPrompt(settings.customPrompt || '')
+    }
+  }, [settings])
+
   const availableModels = useMemo(
     () => aiModelOptions[settings?.aiProvider ?? 'openai'],
     [settings?.aiProvider],
@@ -91,6 +102,41 @@ export function SettingsPage() {
         if (Array.isArray(data.settings) && data.settings.length > 0) await db.settings.bulkAdd(data.settings as never[])
       },
     )
+
+    event.target.value = ''
+  }
+
+  const handleCalendarImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    try {
+      const text = await file.text()
+      const parsed = parseICS(text)
+      const timestamp = new Date().toISOString()
+      
+      const records = parsed.map((item) => ({
+        title: item.title,
+        description: item.description,
+        date: item.date,
+        timeStart: item.timeStart,
+        timeEnd: item.timeEnd,
+        source: 'ics' as const,
+        createdAt: timestamp,
+      }))
+
+      if (records.length > 0) {
+        await db.calendarEvents.bulkAdd(records)
+        alert(`Successfully imported ${records.length} calendar events!`)
+      } else {
+        alert('No valid events found in this file.')
+      }
+    } catch (error) {
+      console.error(error)
+      alert('Error parsing ICS file. Make sure it is a valid iCalendar file.')
+    }
 
     event.target.value = ''
   }
@@ -214,6 +260,84 @@ export function SettingsPage() {
 
       <GlassCard className="space-y-4">
         <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Custom prompt instructions</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-300">Fine-tune the AI agent's behavior and personality prompt.</p>
+        </div>
+        <textarea
+          value={customPrompt}
+          onChange={(event) => setCustomPrompt(event.target.value)}
+          placeholder="You are a personal productivity assistant... Be extremely concise."
+          rows={5}
+          className="glass-soft w-full rounded-2xl px-4 py-3 text-sm text-slate-900 dark:text-white"
+        />
+        <div className="flex gap-2">
+          <GlassButton
+            size="sm"
+            onClick={async () => {
+              await updateSettings({ customPrompt: customPrompt.trim() || undefined })
+              alert('Custom prompt instructions saved!')
+            }}
+          >
+            Save prompt
+          </GlassButton>
+          <GlassButton
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              setCustomPrompt('')
+              await updateSettings({ customPrompt: undefined })
+              alert('Prompt reset to default.')
+            }}
+          >
+            Reset
+          </GlassButton>
+        </div>
+      </GlassCard>
+
+      <GlassCard className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Calendar integration</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-300">Upload calendar ICS files to help the agent schedule tasks.</p>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-600 dark:text-slate-200">Imported ICS Events:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{calendarEvents.length} events</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <GlassButton
+              variant="ghost"
+              size="sm"
+              onClick={() => calendarInputRef.current?.click()}
+            >
+              Upload ICS file
+            </GlassButton>
+            <input
+              ref={calendarInputRef}
+              type="file"
+              accept=".ics"
+              hidden
+              onChange={handleCalendarImport}
+            />
+            {calendarEvents.length > 0 ? (
+              <GlassButton
+                variant="danger"
+                size="sm"
+                onClick={async () => {
+                  if (confirm('Clear all imported calendar events?')) {
+                    await db.calendarEvents.clear()
+                  }
+                }}
+              >
+                Clear events
+              </GlassButton>
+            ) : null}
+          </div>
+        </div>
+      </GlassCard>
+
+      <GlassCard className="space-y-4">
+        <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Categories</h2>
           <p className="text-sm text-slate-500 dark:text-slate-300">Create and manage task categories.</p>
         </div>
@@ -228,7 +352,7 @@ export function SettingsPage() {
             type="color"
             value={newCategoryColor}
             onChange={(event) => setNewCategoryColor(event.target.value)}
-            className="glass-soft h-12 w-16 rounded-2xl px-2"
+            className="w-12 h-12 rounded-2xl cursor-pointer border-2 border-white dark:border-slate-800 shadow-sm p-0.5 bg-white/50 dark:bg-black/20"
           />
           <GlassButton
             size="sm"
@@ -253,7 +377,7 @@ export function SettingsPage() {
                 type="color"
                 value={category.color}
                 onChange={(event) => void updateCategory(category.id!, { color: event.target.value })}
-                className="glass-soft h-12 w-16 rounded-2xl px-2"
+                className="w-12 h-12 rounded-full cursor-pointer border-2 border-white dark:border-slate-800 shadow-sm p-0.5 bg-white/50 dark:bg-black/20"
               />
               <GlassButton variant="danger" size="sm" onClick={() => void deleteCategory(category.id!)}>
                 Remove
@@ -284,9 +408,17 @@ export function SettingsPage() {
         </div>
         <div className="space-y-2">
           {memory.map((item) => (
-            <div key={item.id} className="rounded-2xl bg-white/45 px-4 py-3 text-sm dark:bg-white/5">
-              <div className="font-medium text-slate-900 dark:text-white">{item.key}</div>
-              <div className="text-slate-500 dark:text-slate-300">{item.value}</div>
+            <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/45 px-4 py-3 text-sm dark:bg-white/5">
+              <div>
+                <div className="font-medium text-slate-900 dark:text-white">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary/80 mr-2">[{item.category}]</span>
+                  {item.key}
+                </div>
+                <div className="text-slate-500 dark:text-slate-300">{item.value}</div>
+              </div>
+              <GlassButton variant="ghost" size="sm" onClick={() => void deleteMemory(item.id!)}>
+                Delete
+              </GlassButton>
             </div>
           ))}
           {memory.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-300">No stored memory yet.</p> : null}
@@ -297,11 +429,16 @@ export function SettingsPage() {
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Agent summaries</h2>
         <div className="space-y-2">
           {summaries.map((summary) => (
-            <div key={summary.id} className="rounded-2xl bg-white/45 px-4 py-3 text-sm dark:bg-white/5">
-              <div className="font-medium text-slate-900 dark:text-white">{summary.summary}</div>
-              <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                {summary.period} • ~{summary.tokensSaved} tokens saved
+            <div key={summary.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/45 px-4 py-3 text-sm dark:bg-white/5">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-slate-900 dark:text-white break-words">{summary.summary}</div>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                  {summary.period} • ~{summary.tokensSaved} tokens saved
+                </div>
               </div>
+              <GlassButton variant="ghost" size="sm" onClick={() => void db.agentSummaries.delete(summary.id!)}>
+                Delete
+              </GlassButton>
             </div>
           ))}
           {summaries.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-300">No summaries yet.</p> : null}

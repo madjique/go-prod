@@ -8,6 +8,7 @@ import { db } from '../db/database'
 import type { AppSettings, Message, Task } from '../db/models'
 import { agentTools } from './tools'
 import { buildSystemPrompt } from './systemPrompt'
+import { GoogleGenAI } from '@google/genai'
 
 type ToolResultCallback = (toolName: string, result: unknown) => Promise<void> | void
 
@@ -184,19 +185,25 @@ export async function runAgent({
   onTextDelta,
   onToolResult,
   abortSignal,
-}: RunAgentOptions) {
+}: RunAgentOptions): Promise<any> {
   if (!settings.apiKey.trim()) {
     throw new Error('Please add your API key in Settings before using the AI assistant.')
   }
 
-  const result = streamText({
-    model: selectModel(settings),
-    system: buildSystemPrompt(userProfile, memory, settings),
-    messages,
-    maxSteps: 5,
-    abortSignal,
-    tools: {
-      getTasks: tool({
+  if (settings.aiProvider === 'google') {
+    return runGoogleGenAIAgent({ messages, settings, memory, userProfile, onTextDelta, onToolResult, abortSignal })
+  }
+
+  try {
+    const result = streamText({
+      model: selectModel(settings),
+      system: buildSystemPrompt(userProfile, memory, settings),
+      messages,
+      maxSteps: 5,
+      maxRetries: 0, // Fail fast on rate limits, CORS, or quota errors instead of hanging/retrying
+      abortSignal,
+      tools: {
+        getTasks: tool({
         description: agentTools.getTasks.description,
         parameters: schema<{ startDate: string; endDate?: string }>(agentTools.getTasks.parameters),
         execute: async ({ startDate, endDate }) => {
@@ -297,12 +304,22 @@ export async function runAgent({
         description: agentTools.findFreeSlot.description,
         parameters: schema<{ date: string; durationMinutes: number }>(agentTools.findFreeSlot.parameters),
         execute: async ({ date, durationMinutes }) => {
-          const scheduled = (await listTasksBetween(date, date))
+          const tasksScheduled = (await listTasksBetween(date, date))
             .filter((task) => task.timeStart && task.timeEnd)
             .map((task) => ({
               start: timeToMinutes(task.timeStart!),
               end: timeToMinutes(task.timeEnd!),
             }))
+
+          const calEvents = await db.calendarEvents.where('date').equals(date).toArray()
+          const calScheduled = calEvents
+            .filter((e) => e.timeStart && e.timeEnd)
+            .map((e) => ({
+              start: timeToMinutes(e.timeStart!),
+              end: timeToMinutes(e.timeEnd!),
+            }))
+
+          const scheduled = [...tasksScheduled, ...calScheduled]
             .sort((left, right) => left.start - right.start)
 
           let cursor = settings.workStartHour * 60
@@ -382,19 +399,324 @@ export async function runAgent({
   })
 
   let streamed = ''
-  for await (const delta of result.textStream) {
-    streamed += delta
-    onTextDelta?.(delta)
+  try {
+    for await (const delta of result.textStream) {
+      streamed += delta
+      onTextDelta?.(delta)
+    }
+  } catch (streamError) {
+    console.error('[runAgent] Stream iteration error:', streamError)
+    if (!streamed) throw streamError
   }
 
-  const [text, usage] = await Promise.all([result.text, result.usage])
+  const [text, usage] = await Promise.all([
+    result.text.catch((e) => {
+      console.error('[runAgent] result.text failed:', e)
+      return streamed
+    }),
+    result.usage.catch((e) => {
+      console.error('[runAgent] result.usage failed:', e)
+      return { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    }),
+  ])
 
   return {
     text: text || streamed,
     usage,
     cost: estimateCost(settings.aiModel, usage.totalTokens),
   }
+} catch (outerError) {
+  console.error('[runAgent] Outer execution error:', outerError)
+  throw outerError
+}
 }
 
-export type AgentRunResult = Awaited<ReturnType<typeof runAgent>>
+export type AgentRunResult = {
+  text: string
+  usage: {
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+  }
+  cost: number
+}
 export type AgentUsage = LanguageModelUsage
+
+const localTools: Record<string, (args: any) => Promise<any>> = {
+  getTasks: async ({ startDate, endDate }) => {
+    return listTasksBetween(startDate, endDate ?? startDate)
+  },
+  createTask: async ({ title, description, date, timeStart, timeEnd, categoryId, priority, color }) => {
+    const firstCategory = await db.categories.orderBy('id').first()
+    const timestamp = new Date().toISOString()
+    const id = await db.tasks.add({
+      title,
+      description,
+      date,
+      timeStart,
+      timeEnd,
+      categoryId: categoryId ?? firstCategory?.id ?? 1,
+      priority: priority ?? 'medium',
+      color,
+      isDone: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    return db.tasks.get(id)
+  },
+  updateTask: async ({ id, ...updates }) => {
+    await db.tasks.update(id, { ...updates, updatedAt: new Date().toISOString() })
+    return db.tasks.get(id)
+  },
+  deleteTask: async ({ id }) => {
+    await db.tasks.delete(id)
+    return { id, deleted: true }
+  },
+  markTaskDone: async ({ id, isDone }) => {
+    await db.tasks.update(id, { isDone, updatedAt: new Date().toISOString() })
+    return db.tasks.get(id)
+  },
+  getSummary: async ({ period, date }) => {
+    const start = parseISO(date)
+    const endDate =
+      period === 'day'
+        ? date
+        : period === 'week'
+          ? format(addDays(start, 6), 'yyyy-MM-dd')
+          : format(addDays(start, 30), 'yyyy-MM-dd')
+    const tasks = await listTasksBetween(date, endDate)
+    return {
+      period,
+      startDate: date,
+      endDate,
+      ...summarizeTasks(tasks),
+    }
+  },
+  findFreeSlot: async ({ date, durationMinutes }) => {
+    const dbSettings = await db.settings.orderBy('id').first()
+    const workStart = dbSettings?.workStartHour ?? 9
+    const workEnd = dbSettings?.workEndHour ?? 17
+
+    const tasksScheduled = (await listTasksBetween(date, date))
+      .filter((task) => task.timeStart && task.timeEnd)
+      .map((task) => ({
+        start: timeToMinutes(task.timeStart!),
+        end: timeToMinutes(task.timeEnd!),
+      }))
+
+    const calEvents = await db.calendarEvents.where('date').equals(date).toArray()
+    const calScheduled = calEvents
+      .filter((e) => e.timeStart && e.timeEnd)
+      .map((e) => ({
+        start: timeToMinutes(e.timeStart!),
+        end: timeToMinutes(e.timeEnd!),
+      }))
+
+    const scheduled = [...tasksScheduled, ...calScheduled]
+      .sort((left, right) => left.start - right.start)
+
+    let cursor = workStart * 60
+    const boundary = workEnd * 60
+
+    for (const slot of scheduled) {
+      if (slot.start - cursor >= durationMinutes) {
+        return {
+          date,
+          start: minutesToTime(cursor),
+          end: minutesToTime(cursor + durationMinutes),
+        }
+      }
+      cursor = Math.max(cursor, slot.end)
+    }
+
+    if (boundary - cursor >= durationMinutes) {
+      return {
+        date,
+        start: minutesToTime(cursor),
+        end: minutesToTime(cursor + durationMinutes),
+      }
+    }
+
+    return {
+      date,
+      start: null,
+      end: null,
+      message: 'No free slot found in work hours.',
+    }
+  },
+  getMemory: async ({ query }) => {
+    const items = await db.agentMemory.orderBy('importance').reverse().toArray()
+    const filtered = query
+      ? items.filter((item) =>
+          `${item.key} ${item.value} ${item.category}`
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+        )
+      : items
+    return filtered.slice(0, 8)
+  },
+  updateMemory: async ({ key, value, importance, category }) => {
+    const existing = await db.agentMemory.where('key').equals(key).first()
+    const updatedAt = new Date().toISOString()
+
+    if (existing?.id) {
+      await db.agentMemory.update(existing.id, { value, importance, category, updatedAt })
+      return { id: existing.id, key, value, updated: true }
+    }
+
+    const id = await db.agentMemory.add({ key, value, importance, category, updatedAt })
+    return { id, key, value, updated: false }
+  },
+}
+
+async function runGoogleGenAIAgent({
+  messages,
+  settings,
+  memory,
+  userProfile,
+  onTextDelta,
+  onToolResult,
+  abortSignal,
+}: RunAgentOptions): Promise<AgentRunResult> {
+  const client = new GoogleGenAI({ apiKey: settings.apiKey })
+  
+  const contents: any[] = messages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content as string }],
+  }))
+
+  let currentStep = 0
+  const maxSteps = 5
+  let finalResponseText = ''
+  let finalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+
+  while (currentStep < maxSteps) {
+    if (abortSignal?.aborted) {
+      throw new Error('Agent execution aborted.')
+    }
+
+    currentStep++
+
+    const config: any = {
+      systemInstruction: buildSystemPrompt(userProfile, memory, settings),
+      tools: [
+        {
+          functionDeclarations: Object.entries(agentTools).map(([name, tool]) => ({
+            name,
+            description: tool.description,
+            parameters: tool.parameters,
+          }))
+        }
+      ],
+      temperature: 1,
+      maxOutputTokens: 65536,
+      topP: 0.95,
+    }
+
+    // Configure thinking/reasoning for Gemini 3 and 2.5
+    if (settings.aiModel.includes('gemini-3')) {
+      config.thinkingConfig = {
+        thinkingLevel: 'high'
+      }
+    } else if (settings.aiModel.includes('gemini-2.5')) {
+      config.thinkingConfig = {
+        thinkingBudget: -1 // Dynamic thinking budget
+      }
+    }
+
+    console.log(`[GoogleGenAI] Calling model ${settings.aiModel}, step ${currentStep}`)
+    const responseStream = await client.models.generateContentStream({
+      model: settings.aiModel,
+      contents,
+      config,
+    })
+
+    let stepText = ''
+    let stepFunctionCalls: any[] = []
+    const stepParts: any[] = []
+
+    for await (const chunk of responseStream) {
+      if (chunk.candidates?.[0]?.content?.parts) {
+        stepParts.push(...chunk.candidates[0].content.parts)
+      }
+      if (chunk.functionCalls) {
+        stepFunctionCalls.push(...chunk.functionCalls)
+      }
+      if (chunk.text) {
+        stepText += chunk.text
+        onTextDelta?.(chunk.text)
+      }
+      if (chunk.usageMetadata) {
+        finalUsage = {
+          promptTokens: chunk.usageMetadata.promptTokenCount || finalUsage.promptTokens,
+          completionTokens: chunk.usageMetadata.candidatesTokenCount || finalUsage.completionTokens,
+          totalTokens: chunk.usageMetadata.totalTokenCount || finalUsage.totalTokens,
+        }
+      }
+    }
+
+    if (stepFunctionCalls.length > 0) {
+      console.log(`[GoogleGenAI] Step ${currentStep} generated function calls:`, stepFunctionCalls)
+      
+      contents.push({
+        role: 'model',
+        parts: stepParts,
+      })
+
+      const toolResultsParts: any[] = []
+      for (const call of stepFunctionCalls) {
+        const { name, args } = call
+        const executor = localTools[name]
+        if (executor) {
+          try {
+            console.log(`[GoogleGenAI] Executing tool ${name} with args:`, args)
+            const resultVal = await executor(args)
+            await onToolResult?.(name, resultVal)
+            
+            toolResultsParts.push({
+              functionResponse: {
+                name,
+                response: { result: resultVal }
+              }
+            })
+          } catch (err) {
+            console.error(`[GoogleGenAI] Tool execution error for ${name}:`, err)
+            toolResultsParts.push({
+              functionResponse: {
+                name,
+                response: { error: err instanceof Error ? err.message : String(err) }
+              }
+            })
+          }
+        }
+      }
+
+      contents.push({
+        role: 'user',
+        parts: toolResultsParts,
+      })
+    } else {
+      finalResponseText = stepText
+      break
+    }
+  }
+
+  if (finalUsage.totalTokens === 0) {
+    const chars = finalResponseText.length
+    finalUsage = {
+      promptTokens: 0,
+      completionTokens: Math.round(chars / 4),
+      totalTokens: Math.round(chars / 4),
+    }
+  }
+
+  return {
+    text: finalResponseText,
+    usage: {
+      promptTokens: finalUsage.promptTokens,
+      completionTokens: finalUsage.completionTokens,
+      totalTokens: finalUsage.totalTokens,
+    },
+    cost: estimateCost(settings.aiModel, finalUsage.totalTokens),
+  }
+}

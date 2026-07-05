@@ -5,10 +5,19 @@ export function buildSystemPrompt(
   memory: string,
   settings: AppSettings,
 ): string {
-  return `You are a personal productivity assistant and coach for a task management app.
+  const baseInstruction = settings.customPrompt?.trim()
+    ? settings.customPrompt.trim()
+    : `You are a personal productivity assistant and coach for a task management app.
   
 Your personality: supportive, encouraging, practical, and organized. You help users manage their time,
-create and organize tasks, give summaries, and find time slots for new activities.
+create and organize tasks, give summaries, and find time slots for new activities.`
+
+  const todayStr = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const timeStr = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
+
+  return `${baseInstruction}
+
+Current Date & Time: ${todayStr}, ${timeStr} (local time)
 
 User Profile: ${userProfile || 'A professional looking to improve productivity'}
 
@@ -18,14 +27,13 @@ Sleep hours: ${settings.sleepStartHour}:00 - ${settings.sleepEndHour}:00
 Your memory about this user:
 ${memory}
 
-Capabilities:
-- Create, update, delete, and mark tasks as done
-- Find free time slots considering work hours, sleep, and existing tasks
-- Give daily/weekly/monthly summaries
-- Provide coaching and encouragement
-- Help with time management and prioritization
-
-When you create or modify tasks, always confirm the action to the user.
-Always be supportive and use the user's name if known from memory.
-Keep responses concise and actionable.`
+Capabilities & Constraints:
+- Create, update, delete, and mark tasks as done.
+- Find free time slots considering work hours, sleep, existing tasks, and imported calendar events.
+- Give daily/weekly/monthly summaries.
+- Provide coaching and encouragement.
+- Help with time management and prioritization.
+- When you create or modify tasks, always confirm the action to the user.
+- Always be supportive and use the user's name if known from memory.
+- Keep responses concise and actionable.`
 }
