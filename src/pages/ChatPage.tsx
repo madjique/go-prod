@@ -96,7 +96,7 @@ export function ChatPage() {
     const startRecognition = () => {
       const recognition = new SpeechRecognition()
       recognition.continuous = false
-      recognition.interimResults = true
+      recognition.interimResults = false
       recognition.lang = 'en-US'
 
       recognition.onstart = () => {
@@ -113,11 +113,8 @@ export function ChatPage() {
       }
 
       recognition.onresult = (event: any) => {
-        const lastResult = event.results[event.results.length - 1]
-        if (lastResult.isFinal) {
-          const transcript = lastResult[0].transcript
-          setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
-        }
+        const transcript = event.results[0][0].transcript
+        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
       }
 
       recognitionRef.current = recognition
@@ -138,8 +135,7 @@ export function ChatPage() {
         })
         .catch((err) => {
           console.error('[Mic Permission Error]', err)
-          // Try starting anyway in case permission was already granted
-          startRecognition()
+          alert('Microphone permission is required for voice input. Please enable it in your device settings.')
         })
     } else {
       startRecognition()
