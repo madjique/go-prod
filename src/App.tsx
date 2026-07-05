@@ -54,21 +54,24 @@ function AppRoute() {
   return <Layout />
 }
 
-const router = createBrowserRouter([
-  { path: '/', element: <RootRedirect /> },
-  { path: '/onboarding', element: <OnboardingRoute /> },
-  {
-    path: '/app',
-    element: <AppRoute />,
-    children: [
-      { index: true, element: <Navigate to="today" replace /> },
-      { path: 'today', element: <TodayPage /> },
-      { path: 'chat', element: <ChatPage /> },
-      { path: 'vision', element: <VisionPage /> },
-      { path: 'settings', element: <SettingsPage /> },
-    ],
-  },
-])
+const router = createBrowserRouter(
+  [
+    { path: '/', element: <RootRedirect /> },
+    { path: '/onboarding', element: <OnboardingRoute /> },
+    {
+      path: '/app',
+      element: <AppRoute />,
+      children: [
+        { index: true, element: <Navigate to="today" replace /> },
+        { path: 'today', element: <TodayPage /> },
+        { path: 'chat', element: <ChatPage /> },
+        { path: 'vision', element: <VisionPage /> },
+        { path: 'settings', element: <SettingsPage /> },
+      ],
+    },
+  ],
+  { basename: import.meta.env.BASE_URL }
+)
 
 export default function App() {
   return (
