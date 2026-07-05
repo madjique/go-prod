@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const APP_BASE = '/go-prod/'
-const THEME_COLOR = '#6366f1'
+const THEME_COLOR = '#FB923C'
 
 export default defineConfig({
   base: APP_BASE,
