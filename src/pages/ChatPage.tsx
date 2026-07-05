@@ -93,48 +93,52 @@ export function ChatPage() {
       return
     }
 
-    const recognition = new SpeechRecognition()
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.lang = 'en-US'
+    const startRecognition = () => {
+      const recognition = new SpeechRecognition()
+      recognition.continuous = false
+      recognition.interimResults = false
+      recognition.lang = 'en-US'
 
-    recognition.onstart = () => {
-      setIsListening(true)
-    }
+      recognition.onstart = () => {
+        setIsListening(true)
+      }
 
-    recognition.onerror = (event: any) => {
-      console.error('[SpeechRecognition Error]', event.error)
-      setIsListening(false)
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        // Trigger microphone permission dialog for PWAs and Safari
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          navigator.mediaDevices.getUserMedia({ audio: true })
-            .then((stream) => {
-              stream.getTracks().forEach((track) => track.stop())
-              alert('Microphone access enabled! Please tap the record button again to start.')
-            })
-            .catch((err) => {
-              console.error('[Mic Permission Error]', err)
-              alert('Microphone permission is required. Please enable it in settings.')
-            })
-        }
+      recognition.onerror = (event: any) => {
+        console.error('[SpeechRecognition Error]', event.error)
+        setIsListening(false)
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+      }
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript
+        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+      }
+
+      recognitionRef.current = recognition
+      try {
+        recognition.start()
+      } catch (e) {
+        console.error('[SpeechRecognition Start Error]', e)
       }
     }
 
-    recognition.onend = () => {
-      setIsListening(false)
-    }
-
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript
-      setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
-    }
-
-    recognitionRef.current = recognition
-    try {
-      recognition.start()
-    } catch (e) {
-      console.error('[SpeechRecognition Start Error]', e)
+    // On Safari PWA, request microphone permission first to ensure SpeechRecognition works
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          // Stop the stream immediately - we just need the permission grant
+          stream.getTracks().forEach((track) => track.stop())
+          startRecognition()
+        })
+        .catch((err) => {
+          console.error('[Mic Permission Error]', err)
+          alert('Microphone permission is required for voice input. Please enable it in your device settings.')
+        })
+    } else {
+      startRecognition()
     }
   }
 
