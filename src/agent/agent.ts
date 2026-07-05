@@ -354,6 +354,23 @@ export async function runAgent({
           })
         },
       }),
+      getCategories: tool({
+        description: agentTools.getCategories.description,
+        parameters: schema<Record<string, never>>(agentTools.getCategories.parameters),
+        execute: async () => {
+          const categories = await db.categories.toArray()
+          return emitToolResult(onToolResult, 'getCategories', categories)
+        },
+      }),
+      createCategory: tool({
+        description: agentTools.createCategory.description,
+        parameters: schema<{ name: string; color: string; icon?: string }>(agentTools.createCategory.parameters),
+        execute: async ({ name, color, icon }) => {
+          const id = await db.categories.add({ name, color, icon })
+          const created = await db.categories.get(id)
+          return emitToolResult(onToolResult, 'createCategory', created)
+        },
+      }),
       getMemory: tool({
         description: agentTools.getMemory.description,
         parameters: schema<{ query?: string }>(agentTools.getMemory.parameters),
@@ -543,6 +560,13 @@ const localTools: Record<string, (args: any) => Promise<any>> = {
       end: null,
       message: 'No free slot found in work hours.',
     }
+  },
+  getCategories: async () => {
+    return db.categories.toArray()
+  },
+  createCategory: async ({ name, color, icon }: { name: string; color: string; icon?: string }) => {
+    const id = await db.categories.add({ name, color, icon })
+    return db.categories.get(id)
   },
   getMemory: async ({ query }) => {
     const items = await db.agentMemory.orderBy('importance').reverse().toArray()

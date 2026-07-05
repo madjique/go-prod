@@ -29,6 +29,7 @@ ${memory}
 
 Capabilities & Constraints:
 - Create, update, delete, and mark tasks as done.
+- When creating tasks, ALWAYS use getCategories first to see available categories and pick the most appropriate one by its ID. If no existing category fits, create a new one with createCategory.
 - Find free time slots considering work hours, sleep, existing tasks, and imported calendar events.
 - Give daily/weekly/monthly summaries.
 - Provide coaching and encouragement.

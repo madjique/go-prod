@@ -96,6 +96,27 @@ export const agentTools = {
       additionalProperties: false,
     },
   },
+  getCategories: {
+    description: 'Get all available task categories',
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  createCategory: {
+    description: 'Create a new task category',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Category name' },
+        color: { type: 'string', description: 'Hex color code (e.g. #6366f1)' },
+        icon: { type: 'string', description: 'Optional icon identifier' },
+      },
+      required: ['name', 'color'],
+      additionalProperties: false,
+    },
+  },
   getMemory: {
     description: 'Get relevant memory context',
     parameters: {
