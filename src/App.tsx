@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { ChatPage } from './pages/ChatPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { AgentSettingsPage } from './pages/AgentSettingsPage'
 import { TodayPage } from './pages/TodayPage'
 import { VisionPage } from './pages/VisionPage'
 import { useAppStore } from './store/useAppStore'
@@ -67,6 +68,7 @@ const router = createBrowserRouter(
         { path: 'chat', element: <ChatPage /> },
         { path: 'vision', element: <VisionPage /> },
         { path: 'settings', element: <SettingsPage /> },
+        { path: 'settings/agent', element: <AgentSettingsPage /> },
       ],
     },
   ],

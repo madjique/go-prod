@@ -1,50 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { aiModelOptions } from '../agent/modelOptions'
+import { useNavigate } from 'react-router-dom'
 import { db } from '../db/database'
-import type { AppSettings } from '../db/models'
 import { GlassButton } from '../components/ui/GlassButton'
 import { GlassCard } from '../components/ui/GlassCard'
-import { useAgentMemory } from '../hooks/useAgentMemory'
 import { useCategories } from '../hooks/useCategories'
 import { useSettingsContext } from '../context/SettingsContext'
 import { parseICS } from '../utils/ics.utils'
 
 export function SettingsPage() {
+  const navigate = useNavigate()
   const {
     settings,
     updateTheme,
-    updateProvider,
-    updateModel,
-    updateApiKey,
     updateCalendarAccess,
     setOnboardingState,
     updateSettings,
   } = useSettingsContext()
   const { categories, addCategory, updateCategory, deleteCategory } = useCategories()
-  const { memory, deleteMemory, clearAllMemory } = useAgentMemory()
-  const summaries = useLiveQuery(
-    () => db.agentSummaries.orderBy('createdAt').reverse().toArray(),
-    [],
-    [],
-  )
   const calendarEvents = useLiveQuery(() => db.calendarEvents.toArray(), [], [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const calendarInputRef = useRef<HTMLInputElement | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newCategoryColor, setNewCategoryColor] = useState('#6366f1')
-  const [customPrompt, setCustomPrompt] = useState('')
-
-  useEffect(() => {
-    if (settings) {
-      setCustomPrompt(settings.customPrompt || '')
-    }
-  }, [settings])
-
-  const availableModels = useMemo(
-    () => aiModelOptions[settings?.aiProvider ?? 'openai'],
-    [settings?.aiProvider],
-  )
 
   if (!settings) {
     return <GlassCard>Loading settings...</GlassCard>
@@ -162,38 +140,15 @@ export function SettingsPage() {
         </div>
       </GlassCard>
 
-      <GlassCard className="space-y-4">
+      <GlassCard
+        className="flex items-center justify-between p-4 cursor-pointer hover:border-primary/45 transition-colors border border-transparent hover:border-white/50 dark:hover:border-white/10"
+        onClick={() => navigate('/app/settings/agent')}
+      >
         <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">AI provider</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-300">Connect your preferred model provider.</p>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">AI Coach Settings</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-300">Model keys, prompt behavior, memory, and usage logs.</p>
         </div>
-        <select
-          value={settings.aiProvider}
-          onChange={(event) => void updateProvider(event.target.value as AppSettings['aiProvider'])}
-          className="glass-soft h-12 w-full rounded-2xl px-4 text-sm text-slate-900 dark:text-white"
-        >
-          <option value="openai">OpenAI</option>
-          <option value="google">Google</option>
-          <option value="anthropic">Anthropic</option>
-        </select>
-        <select
-          value={settings.aiModel}
-          onChange={(event) => void updateModel(event.target.value)}
-          className="glass-soft h-12 w-full rounded-2xl px-4 text-sm text-slate-900 dark:text-white"
-        >
-          {availableModels.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
-        <input
-          type="password"
-          value={settings.apiKey}
-          placeholder="API key"
-          onChange={(event) => void updateApiKey(event.target.value)}
-          className="glass-soft h-12 w-full rounded-2xl px-4 text-sm text-slate-900 dark:text-white"
-        />
+        <span className="text-slate-400 dark:text-slate-500 text-lg">→</span>
       </GlassCard>
 
       <GlassCard className="space-y-4">
@@ -258,41 +213,7 @@ export function SettingsPage() {
         </label>
       </GlassCard>
 
-      <GlassCard className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Custom prompt instructions</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-300">Fine-tune the AI agent's behavior and personality prompt.</p>
-        </div>
-        <textarea
-          value={customPrompt}
-          onChange={(event) => setCustomPrompt(event.target.value)}
-          placeholder="You are a personal productivity assistant... Be extremely concise."
-          rows={5}
-          className="glass-soft w-full rounded-2xl px-4 py-3 text-sm text-slate-900 dark:text-white"
-        />
-        <div className="flex gap-2">
-          <GlassButton
-            size="sm"
-            onClick={async () => {
-              await updateSettings({ customPrompt: customPrompt.trim() || undefined })
-              alert('Custom prompt instructions saved!')
-            }}
-          >
-            Save prompt
-          </GlassButton>
-          <GlassButton
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              setCustomPrompt('')
-              await updateSettings({ customPrompt: undefined })
-              alert('Prompt reset to default.')
-            }}
-          >
-            Reset
-          </GlassButton>
-        </div>
-      </GlassCard>
+
 
       <GlassCard className="space-y-4">
         <div>
@@ -396,54 +317,7 @@ export function SettingsPage() {
         </div>
       </GlassCard>
 
-      <GlassCard className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Agent memory</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-300">Saved user context for coaching.</p>
-          </div>
-          <GlassButton variant="ghost" size="sm" onClick={() => void clearAllMemory()}>
-            Clear memory
-          </GlassButton>
-        </div>
-        <div className="space-y-2">
-          {memory.map((item) => (
-            <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/45 px-4 py-3 text-sm dark:bg-white/5">
-              <div>
-                <div className="font-medium text-slate-900 dark:text-white">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary/80 mr-2">[{item.category}]</span>
-                  {item.key}
-                </div>
-                <div className="text-slate-500 dark:text-slate-300">{item.value}</div>
-              </div>
-              <GlassButton variant="ghost" size="sm" onClick={() => void deleteMemory(item.id!)}>
-                Delete
-              </GlassButton>
-            </div>
-          ))}
-          {memory.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-300">No stored memory yet.</p> : null}
-        </div>
-      </GlassCard>
 
-      <GlassCard className="space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Agent summaries</h2>
-        <div className="space-y-2">
-          {summaries.map((summary) => (
-            <div key={summary.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/45 px-4 py-3 text-sm dark:bg-white/5">
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-slate-900 dark:text-white break-words">{summary.summary}</div>
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                  {summary.period} • ~{summary.tokensSaved} tokens saved
-                </div>
-              </div>
-              <GlassButton variant="ghost" size="sm" onClick={() => void db.agentSummaries.delete(summary.id!)}>
-                Delete
-              </GlassButton>
-            </div>
-          ))}
-          {summaries.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-300">No summaries yet.</p> : null}
-        </div>
-      </GlassCard>
 
       <GlassCard className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Onboarding</h2>

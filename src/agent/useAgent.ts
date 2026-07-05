@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import type { CoreMessage } from 'ai'
 import { db } from '../db/database'
 import type { Message } from '../db/models'
 import { runAgent, buildConversationSummary, extractMemoryCandidates } from './agent'
+import { useAppStore } from '../store/useAppStore'
 
 interface UseAgentOptions {
   conversationId: number | null
@@ -30,9 +31,12 @@ function toCoreMessages(messages: Message[]): CoreMessage[] {
 }
 
 export function useAgent({ conversationId }: UseAgentOptions) {
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [streamingText, setStreamingText] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const isStreaming = useAppStore((state) => state.chatIsStreaming)
+  const setIsStreaming = useAppStore((state) => state.setChatIsStreaming)
+  const streamingText = useAppStore((state) => state.chatStreamingText)
+  const setStreamingText = useAppStore((state) => state.setChatStreamingText)
+  const error = useAppStore((state) => state.chatError)
+  const setError = useAppStore((state) => state.setChatError)
 
   const sendMessage = useCallback(
     async (content: string) => {

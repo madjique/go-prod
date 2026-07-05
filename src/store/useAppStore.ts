@@ -18,6 +18,9 @@ interface AppState {
   activeConversationId: number | null
   onboardingCompleted: boolean
   hasHydrated: boolean
+  chatIsStreaming: boolean
+  chatStreamingText: string
+  chatError: string | null
   setTheme: (theme: ThemeMode) => void
   setActiveTab: (activeTab: AppTab) => void
   setCurrentViewDate: (date: string) => void
@@ -29,6 +32,9 @@ interface AppState {
   setActiveConversationId: (conversationId: number | null) => void
   setOnboardingCompleted: (completed: boolean) => void
   setHasHydrated: (value: boolean) => void
+  setChatIsStreaming: (isStreaming: boolean) => void
+  setChatStreamingText: (text: string | ((prev: string) => string)) => void
+  setChatError: (error: string | null) => void
   openCreateTaskModal: (date?: string) => void
   openEditTaskModal: (taskId: number) => void
   openDetailsModal: (taskId: number) => void
@@ -51,17 +57,26 @@ export const useAppStore = create<AppState>()(
       activeConversationId: null,
       onboardingCompleted: false,
       hasHydrated: false,
+      chatIsStreaming: false,
+      chatStreamingText: '',
+      chatError: null,
       setTheme: (theme) => set({ theme }),
       setActiveTab: (activeTab) => set({ activeTab }),
       setCurrentViewDate: (currentViewDate) => set({ currentViewDate }),
       setIsAddTaskModalOpen: (isAddTaskModalOpen) => set({ isAddTaskModalOpen }),
       setEditingTaskId: (editingTaskId) => set({ editingTaskId }),
       setIsDetailsModalOpen: (isDetailsModalOpen) => set({ isDetailsModalOpen }),
-      setDetailsTaskId: (detailsTaskId) => set({ detailsTaskId }),
+      setDetailsTaskId: (setDetailsTaskId) => set({ detailsTaskId: setDetailsTaskId }),
       setVisionMode: (visionMode) => set({ visionMode }),
       setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
       setOnboardingCompleted: (onboardingCompleted) => set({ onboardingCompleted }),
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
+      setChatIsStreaming: (chatIsStreaming) => set({ chatIsStreaming }),
+      setChatStreamingText: (text) =>
+        set((state) => ({
+          chatStreamingText: typeof text === 'function' ? text(state.chatStreamingText) : text,
+        })),
+      setChatError: (chatError) => set({ chatError }),
       openCreateTaskModal: (date) =>
         set({
           currentViewDate: date ?? format(new Date(), 'yyyy-MM-dd'),

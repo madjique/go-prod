@@ -12,6 +12,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      injectRegister: null,
       registerType: 'autoUpdate',
       manifest: {
         name: 'Go Prod',

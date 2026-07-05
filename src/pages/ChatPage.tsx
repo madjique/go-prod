@@ -11,7 +11,7 @@ import { useAgent } from '../agent/useAgent'
 import { useTasks } from '../hooks/useTasks'
 import { useCategories } from '../hooks/useCategories'
 import type { Task } from '../db/models'
-
+import ReactMarkdown from 'react-markdown'
 function tryParseTask(content: string): Task | null {
   try {
     const parsed = JSON.parse(content)
@@ -103,6 +103,20 @@ export function ChatPage() {
     recognition.onerror = (event: any) => {
       console.error('[SpeechRecognition Error]', event.error)
       setIsListening(false)
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        // Trigger microphone permission dialog for PWAs and Safari
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then((stream) => {
+              stream.getTracks().forEach((track) => track.stop())
+              alert('Microphone access enabled! Please tap the record button again to start.')
+            })
+            .catch((err) => {
+              console.error('[Mic Permission Error]', err)
+              alert('Microphone permission is required. Please enable it in settings.')
+            })
+        }
+      }
     }
 
     recognition.onend = () => {
@@ -115,104 +129,162 @@ export function ChatPage() {
     }
 
     recognitionRef.current = recognition
-    recognition.start()
+    try {
+      recognition.start()
+    } catch (e) {
+      console.error('[SpeechRecognition Start Error]', e)
+    }
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end gap-3">
-        <GlassButton
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            void createConversation().then((id) => {
-              setActiveConversationId(id)
-              setHistoryOpen(false)
-            })
-          }}
-        >
-          <Plus className="size-5" />
-        </GlassButton>
-        <GlassButton variant="ghost" size="icon" onClick={() => setHistoryOpen(true)}>
-          <History className="size-5" />
-        </GlassButton>
-      </div>
-
+    <div className="flex flex-col min-h-0 h-full relative pt-2">
       {!settings?.apiKey ? (
-        <GlassCard className="text-sm text-slate-600 dark:text-slate-200">
+        <GlassCard className="text-sm text-slate-600 dark:text-slate-200 mb-4">
           Add an AI provider and API key in Settings to start chatting with your coach.
         </GlassCard>
       ) : null}
 
-      <GlassCard className="flex min-h-[60vh] flex-col gap-4 p-0">
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 max-h-[65vh]">
-          {messages.length === 0 ? (
-            <div className="text-sm text-slate-500 dark:text-slate-300">Ask for planning help, summaries, or task creation.</div>
-          ) : null}
-          {messages.map((message) => {
-            const task = message.role === 'tool' ? tryParseTask(message.content) : null
-            const isTool = message.role === 'tool'
+      <div className="flex-1 space-y-4 px-1 py-4 pb-40 md:pb-28">
+        {messages.length === 0 ? (
+          <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-12">
+            Ask for planning help, summaries, or task creation.
+          </div>
+        ) : null}
+        {messages.map((message) => {
+          const task = message.role === 'tool' ? tryParseTask(message.content) : null
+          const isTool = message.role === 'tool'
 
-            if (isTool) {
-              if (task) {
-                const taskCategory = categories.find((c) => c.id === task.categoryId)
-                return (
-                  <div key={message.id} className="max-w-[90%] mr-auto space-y-1">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      Task {message.toolName === 'createTask' ? 'Created' : 'Updated'}
-                    </div>
-                    <div className="w-full text-left">
-                      <TaskCard
-                        task={task}
-                        category={taskCategory}
-                        onToggle={() => void toggleDone(task.id!)}
-                        onClick={() => openDetailsModal(task.id!)}
-                      />
-                    </div>
-                  </div>
-                )
-              }
-
-              const labelMap: Record<string, string> = {
-                getTasks: 'Checked tasks list',
-                getSummary: 'Compiled summary',
-                findFreeSlot: 'Searched calendar for free time',
-                getMemory: 'Retrieved context from memory',
-                updateMemory: 'Saved info to memory',
-                deleteTask: 'Deleted task',
-              }
-              const label = labelMap[message.toolName || ''] || message.toolName
-
+          if (isTool) {
+            if (task) {
+              const taskCategory = categories.find((c) => c.id === task.categoryId)
               return (
-                <div key={message.id} className="mr-auto rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 px-3 py-1 text-[11px] text-slate-500 dark:text-slate-400">
-                  ⚙️ {label}
+                <div key={message.id} className="max-w-[90%] mr-auto space-y-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Task {message.toolName === 'createTask' ? 'Created' : 'Updated'}
+                  </div>
+                  <div className="w-full text-left">
+                    <TaskCard
+                      task={task}
+                      category={taskCategory}
+                      onToggle={() => void toggleDone(task.id!)}
+                      onClick={() => openDetailsModal(task.id!)}
+                    />
+                  </div>
                 </div>
               )
             }
 
+            const labelMap: Record<string, string> = {
+              getTasks: 'Checked tasks list',
+              getSummary: 'Compiled summary',
+              findFreeSlot: 'Searched calendar for free time',
+              getMemory: 'Retrieved context from memory',
+              updateMemory: 'Saved info to memory',
+              deleteTask: 'Deleted task',
+            }
+            const label = labelMap[message.toolName || ''] || message.toolName
+
             return (
-              <div
-                key={message.id}
-                className={`max-w-[85%] rounded-[24px] px-4 py-3 text-sm ${
-                  message.role === 'user'
-                    ? 'ml-auto bg-primary text-white'
-                    : 'glass-soft text-slate-700 dark:text-slate-100'
-                }`}
-              >
-                <div className="whitespace-pre-wrap">{message.content}</div>
+              <div key={message.id} className="mr-auto rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 px-3 py-1 text-[11px] text-slate-500 dark:text-slate-400">
+                ⚙️ {label}
               </div>
             )
-          })}
-          {isStreaming && streamingText ? (
-            <div className="glass-soft max-w-[85%] rounded-[24px] px-4 py-3 text-sm text-slate-700 dark:text-slate-100">
-              {streamingText}
+          }
+
+          return (
+            <div
+              key={message.id}
+              className={
+                message.role === 'user'
+                  ? 'w-fit max-w-[85%] ml-auto bg-gradient-to-br from-primary to-secondary text-white rounded-[24px] px-4 py-3 text-sm shadow-md border border-white/20 whitespace-pre-wrap'
+                  : 'max-w-[85%] mr-auto text-sm text-slate-800 dark:text-slate-100 py-1'
+              }
+            >
+              {message.role === 'user' ? (
+                message.content
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    p: ({ node, ...props }) => <p className="mb-1.5 last:mb-0 leading-relaxed" {...props} />,
+                    ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 mt-1 space-y-0.5" {...props} />,
+                    ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2 mt-1 space-y-0.5" {...props} />,
+                    li: ({ node, ...props }) => <li className="text-sm" {...props} />,
+                    strong: ({ node, ...props }) => <strong className="font-semibold text-slate-950 dark:text-white" {...props} />,
+                    a: ({ node, ...props }) => <a className="text-primary underline hover:text-primary/80" target="_blank" rel="noopener noreferrer" {...props} />,
+                    h1: ({ node, ...props }) => <h1 className="text-base font-bold mb-1 mt-2 text-slate-950 dark:text-white" {...props} />,
+                    h2: ({ node, ...props }) => <h2 className="text-sm font-bold mb-1 mt-2 text-slate-950 dark:text-white" {...props} />,
+                    h3: ({ node, ...props }) => <h3 className="text-xs font-bold mb-1 mt-2 text-slate-950 dark:text-white" {...props} />,
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              )}
             </div>
-          ) : null}
-          {error ? <div className="text-sm text-red-500 px-2">⚠️ {error}</div> : null}
-          <div ref={endRef} />
-        </div>
+          )
+        })}
+        {isStreaming && streamingText ? (
+          <div className="max-w-[85%] mr-auto text-sm text-slate-800 dark:text-slate-100 py-1">
+            <ReactMarkdown
+              components={{
+                p: ({ node, ...props }) => <p className="mb-1.5 last:mb-0 leading-relaxed" {...props} />,
+                ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 mt-1 space-y-0.5" {...props} />,
+                ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2 mt-1 space-y-0.5" {...props} />,
+                li: ({ node, ...props }) => <li className="text-sm" {...props} />,
+                strong: ({ node, ...props }) => <strong className="font-semibold text-slate-950 dark:text-white" {...props} />,
+                a: ({ node, ...props }) => <a className="text-primary underline hover:text-primary/80" target="_blank" rel="noopener noreferrer" {...props} />,
+                h1: ({ node, ...props }) => <h1 className="text-base font-bold mb-1 mt-2 text-slate-955 dark:text-white" {...props} />,
+                h2: ({ node, ...props }) => <h2 className="text-sm font-bold mb-1 mt-2 text-slate-955 dark:text-white" {...props} />,
+                h3: ({ node, ...props }) => <h3 className="text-xs font-bold mb-1 mt-2 text-slate-955 dark:text-white" {...props} />,
+              }}
+            >
+              {streamingText}
+            </ReactMarkdown>
+          </div>
+        ) : null}
+        {isStreaming && !streamingText ? (
+          <div className="mr-auto flex max-w-[85%] items-center gap-2 text-sm text-slate-500 dark:text-slate-400 py-1">
+            <span>Thinking</span>
+            <div className="flex gap-1">
+              <span className="size-2 animate-bounce rounded-full bg-primary/80" style={{ animationDelay: '0ms' }} />
+              <span className="size-2 animate-bounce rounded-full bg-primary/80" style={{ animationDelay: '150ms' }} />
+              <span className="size-2 animate-bounce rounded-full bg-primary/80" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
+        ) : null}
+        {error ? <div className="text-sm text-red-500 px-2">⚠️ {error}</div> : null}
+        <div ref={endRef} />
+      </div>
+
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+78px)] md:bottom-6 left-4 right-4 md:left-[calc(16rem+2rem)] md:right-8 z-30 mx-auto max-w-2xl flex items-center gap-2">
+        {!isListening && (
+          <>
+            <GlassButton
+              variant="ghost"
+              className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20 shrink-0"
+              onClick={() => {
+                void createConversation().then((id) => {
+                  setActiveConversationId(id)
+                })
+              }}
+              disabled={messages.length === 0}
+              title="New Conversation"
+            >
+              <Plus className="size-5 animate-none" />
+            </GlassButton>
+
+            <GlassButton
+              variant="ghost"
+              className="size-11 rounded-full p-0 shadow-lg border border-white/50 dark:border-white/10 bg-white/40 dark:bg-black/20 shrink-0"
+              onClick={() => setHistoryOpen(true)}
+              title="Conversation History"
+            >
+              <History className="size-5" />
+            </GlassButton>
+          </>
+        )}
+
         <form
-          className="border-t border-white/20 px-4 py-4"
+          className="flex-1 glass rounded-full p-1.5 shadow-lg border border-white/50 dark:border-white/10 transition-all duration-300"
           onSubmit={(event) => {
             event.preventDefault()
             const value = input.trim()
@@ -223,29 +295,71 @@ export function ChatPage() {
             void sendMessage(value)
           }}
         >
-          <div className="flex items-center gap-3">
-            <input
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="Plan my afternoon, summarize today, find focus time..."
-              className="glass-soft h-12 flex-1 rounded-2xl px-4 text-sm text-slate-900 dark:text-white"
-            />
-            <GlassButton
-              type="button"
-              size="icon"
-              variant={isListening ? 'primary' : 'ghost'}
-              onClick={toggleListening}
-              className={isListening ? 'animate-pulse' : ''}
-              title="Speak to type"
-            >
-              {isListening ? <MicOff className="size-5" /> : <Mic className="size-5" />}
-            </GlassButton>
-            <GlassButton size="icon" type="submit" disabled={isStreaming || !input.trim()}>
-              <Send className="size-5" />
-            </GlassButton>
-          </div>
+          {isListening ? (
+            <div className="flex items-center justify-between w-full px-4 py-0.5">
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Recording</span>
+              </div>
+              
+              {/* Stretched center wave visualizer */}
+              <div className="flex-1 flex items-end justify-center gap-1 h-5 mx-4 overflow-hidden">
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-1" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-2" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-3" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-4" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-1" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-2" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-3" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-4" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-1" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-2" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-3" />
+                <span className="w-1 bg-red-500 rounded-full animate-voice-bar-4" />
+              </div>
+
+              <GlassButton
+                type="button"
+                className="h-8 rounded-full px-3 text-[11px] font-bold bg-red-500/10 hover:bg-red-500/20 text-red-650 dark:text-red-400 border border-red-500/20 flex items-center gap-1 transition-all duration-300 shrink-0"
+                onClick={toggleListening}
+              >
+                <MicOff className="size-3" />
+                Stop
+              </GlassButton>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Plan my afternoon, summarize today, find focus time..."
+                className="h-10 flex-1 bg-transparent px-4 text-sm text-slate-900 dark:text-white focus:outline-none placeholder-slate-400 dark:placeholder-slate-500"
+              />
+              <GlassButton
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={toggleListening}
+                className="size-10 rounded-full border border-transparent bg-transparent hover:bg-white/30 dark:hover:bg-white/10"
+                title="Speak to type"
+              >
+                <Mic className="size-4" />
+              </GlassButton>
+              <GlassButton
+                size="icon"
+                type="submit"
+                disabled={isStreaming || !input.trim()}
+                className="size-10 rounded-full bg-primary text-white hover:bg-indigo-500"
+              >
+                <Send className="size-4" />
+              </GlassButton>
+            </div>
+          )}
         </form>
-      </GlassCard>
+      </div>
 
       <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title="Conversation history">
         <div className="space-y-3">

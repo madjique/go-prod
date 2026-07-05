@@ -10,9 +10,9 @@ interface GlassButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<Variant, string> = {
-  primary: 'bg-primary text-white shadow-indigo-500/30 hover:bg-indigo-500',
-  secondary: 'bg-secondary text-white shadow-violet-500/30 hover:bg-violet-500',
-  danger: 'bg-red-500 text-white shadow-red-500/25 hover:bg-red-400',
+  primary: 'bg-primary text-white hover:bg-indigo-500',
+  secondary: 'bg-secondary text-white hover:bg-violet-500',
+  danger: 'bg-red-500 text-white hover:bg-red-400',
   ghost: 'glass text-slate-700 hover:bg-white/60 dark:text-slate-100 dark:hover:bg-white/10',
 }
 

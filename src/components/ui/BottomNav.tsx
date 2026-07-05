@@ -1,5 +1,6 @@
 import { CalendarDays, LayoutGrid, MessageCircle, Settings } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useAppStore, type AppTab } from '../../store/useAppStore'
 import { cn } from '../../utils/cn'
 
@@ -22,8 +23,8 @@ export function BottomNav() {
   const location = useLocation()
 
   return (
-    <nav className="fixed inset-x-0 bottom-4 z-40 mx-auto w-full max-w-md px-4 md:max-w-3xl">
-      <div className="glass mx-auto flex items-center justify-between rounded-full px-3 py-2">
+    <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+16px)] z-40 mx-auto w-full max-w-md px-4 md:max-w-3xl">
+      <div className="glass mx-auto flex items-center justify-between rounded-full p-1">
         {items.map((item) => {
           const Icon = item.icon
           const isActive = activeTab === item.value || location.pathname === item.href
@@ -37,14 +38,23 @@ export function BottomNav() {
                 navigate(item.href)
               }}
               className={cn(
-                'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-full px-3 py-2 text-xs font-medium transition',
+                'relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-full px-2 py-1.5 text-[10px] sm:text-[11px] font-bold transition-colors duration-300 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 select-none',
                 isActive
-                  ? 'bg-primary text-white shadow-lg shadow-indigo-500/25'
-                  : 'text-slate-500 dark:text-slate-300',
+                  ? 'text-primary'
+                  : 'text-slate-500 dark:text-slate-350 hover:text-slate-900 dark:hover:text-white',
               )}
             >
-              <Icon className="size-5" />
-              <span>{item.label}</span>
+              {isActive ? (
+                <motion.div
+                  layoutId="activeTabBackground"
+                  className="absolute inset-0 bg-primary/10 border border-primary/20 rounded-full z-0"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              ) : null}
+              <span className="relative z-10 flex flex-col items-center gap-0.5">
+                <Icon className="size-4.5" />
+                <span>{item.label}</span>
+              </span>
             </button>
           )
         })}
